@@ -8,9 +8,9 @@
   "lang": "en_US",
   "use_keys": 1,
   "offset": 0,
-  "dismiss_notice": 1,
+  "dismiss_notice": 0,
   "use_sfx": 1,
   "menu_music": 1,
   "sync_with_music": 1,
-  "instant_combo_break_sound": 1
+  "instant_combo_break_sound": 0
 }
