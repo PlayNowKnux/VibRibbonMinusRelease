@@ -1,0 +1,26 @@
+{
+  "noto-sans.otf": "roboto.ttf",
+  "subtitle": "",
+  "start_msg": "presiona enter",
+  "pause_text": "pausado",
+  "pause_resume": "resumir",
+  "pause_try_again": "reintentar",
+  "pause_quit_to_menu": "ir al menu",
+  "pause_quit_game": "salir del juego",
+  "botplay": "BOTPLAY",
+  "score": "score",
+  "pts": " pts",
+  "game_over": "game over!",
+
+  "win_100": "vaya! lo jugaste perfectamente!",
+  "win_99": "esto se veria bien para un gameplay...",
+  "win_95": "fantastico!",
+  "win_95_close": "lo lograste; muy buen trabajo!",
+  "win_90": "eso fue increible!",
+  "win_90_close": "lo lograste; eso fue increible!",
+  "win_80": "bien hecho! siento algo de potencial aqui...",
+  "win_70": "okay! la practica hace el maestro!",
+  "win_60": "ouch, eso fue duro... por que no reintentar?",
+  "win_50": "ouch...",
+  "win_bot": "te gusto la jugada del bot? ahora intentalo!"
+}

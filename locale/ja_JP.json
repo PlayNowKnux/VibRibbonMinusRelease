@@ -1,0 +1,50 @@
+{
+  "start_msg": "エンターキーを押す",
+  "subtitle": "ビブリボン　マイナス",
+
+  "pause_text": "一時停止",
+  "pause_resume": "つづける",
+  "pause_try_again": "もっかいやる",
+  "pause_quit_to_menu": "メニューへ止める",
+  "pause_quit_game": "ゲームを止める",
+
+  "menu_play_song": "ソングセレクト",
+  "menu_options": "オプション",
+  "menu_tutorial": "遊び方（近日公開）",
+  "menu_back": "もどる",
+
+  "options_language": "言語",
+  "options_music": "メニュー音楽",
+  "options_sfx": "SFX",
+
+  "SUPER": "スーパー",
+  "RABBIT": "ウサギ",
+  "FROG": "カエル",
+  "WORM": "ムシ",
+
+  "botplay": "オート",
+  "wildcard": "ワイルドカード",
+  "you_win": "やったね！",
+  "score": "得点",
+  "pts": "点",
+  "combo": "コンボ",
+  "game_over": "ゲームオーバー！",
+
+  "win_100": "holy moly! you've played it perfectly!",
+  "win_99": "this would look good for a youtube video...",
+  "win_95": "phenomenal job!",
+  "win_95_close": "just nailed it; phenomenal job!",
+  "win_90": "that was great!",
+  "win_90_close": "just nailed it; that was great!",
+  "win_80": "good job! i think you have potential.",
+  "win_70": "okay! practice makes perfect!",
+  "win_60": "oof, that was rough... why not give it another go?",
+  "win_50": "ouch...",
+  "win_bot": "like the bot's run? now try it yourself!",
+
+  "win_screen_play_again": "press enter to play again",
+  "win_screen_menu": "press esc to go back to song select",
+
+  "incorrect_sample": "この歌のサンプルレートは４４１００Hzじゃないので、プレイできない",
+  "restart_game": "変更が保存されました。 何かキーを押すとゲームを止める"
+}

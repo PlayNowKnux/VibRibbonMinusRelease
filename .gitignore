@@ -1,0 +1,21 @@
+/.idea/
+*.pyc
+maps/fire/
+maps/theme/
+maps/mope/
+*.py~
+*.png~
+*.ini
+*.zip
+*.iml
+/maps/Inferno/
+/maps/Inferno2/
+/maps/where is this from pls help/
+/maps/wsv/
+/maps/Stone Ocean/
+/maps/Disorder/
+/maps/I'm Poppy (Cut Ver)/
+/maps/Stone Ocean SICKO MODE/
+/maps/Sugar Rush/
+/dist/
+/build/
