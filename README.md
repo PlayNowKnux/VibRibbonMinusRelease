@@ -3,6 +3,5 @@
 (Original game by Masaya Matsuura, published by NanaOn-Sha)
 
 ## Features
-* Support for custom levels both manually mapped and automatically generated.
+* Support for custom-made levels. They can be converted from osu!mania and Quaver as well.
 * Advanced timing mechanics similar to that of Stepmania or most 4-key rhythm games of the like.
-* Determined map difficulties using math!
