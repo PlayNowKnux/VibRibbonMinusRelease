@@ -16,7 +16,10 @@ added_files = [
     ('options.json', '.'),
     ('roboto.ttf', '.'),
     ('roboto-license.txt', '.'),
-    ('splashes.txt', '.')
+    ('splashes.txt', '.'),
+
+    ('Tutorial.md', './docs'),
+    ('Vib-Ribbon Minus Guide for Mappers.md', './docs')
 ]
 
 a = Analysis(
@@ -47,7 +50,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
