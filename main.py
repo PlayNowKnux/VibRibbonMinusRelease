@@ -268,7 +268,7 @@ song_data = None
 
 # Splashes
 splashes = []
-with open("splashes.txt", "r", encoding="utf-8") as f:
+with open(asset("splashes.txt"), "r", encoding="utf-8") as f:
     splashes = f.read().split("\n")
 
 # Window title
