@@ -4,7 +4,7 @@
 
   "pause_text": "一時停止",
   "pause_resume": "つづける",
-  "pause_try_again": "もっかいやる",
+  "pause_try_again": "もう一回やる",
   "pause_quit_to_menu": "メニューへ止める",
   "pause_quit_game": "ゲームを止める",
 
@@ -16,6 +16,7 @@
   "options_language": "言語",
   "options_music": "メニュー音楽",
   "options_sfx": "SFX",
+  "options_display_pressed": "display pressed keys",
 
   "SUPER": "スーパー",
   "RABBIT": "ウサギ",
@@ -23,28 +24,31 @@
   "WORM": "ムシ",
 
   "botplay": "オート",
+  "nofail": "失敗できない",
   "wildcard": "ワイルドカード",
+  "no_mods": "モードがない",
   "you_win": "やったね！",
   "score": "得点",
   "pts": "点",
   "combo": "コンボ",
   "game_over": "ゲームオーバー！",
 
-  "win_100": "holy moly! you've played it perfectly!",
-  "win_99": "this would look good for a youtube video...",
-  "win_95": "phenomenal job!",
-  "win_95_close": "just nailed it; phenomenal job!",
-  "win_90": "that was great!",
-  "win_90_close": "just nailed it; that was great!",
-  "win_80": "good job! i think you have potential.",
-  "win_70": "okay! practice makes perfect!",
-  "win_60": "oof, that was rough... why not give it another go?",
-  "win_50": "ouch...",
-  "win_bot": "like the bot's run? now try it yourself!",
+  "win_100": "ひょ～すごいねぇ！完璧にできたよ！",
+  "win_99": "ユーチューブにしたらいいいかもしれないなぁ",
+  "win_95": "超すごいじゃん",
+  "win_95_close": "やったね！かっこいいぞ。",
+  "win_90": "よくできるなぁ!",
+  "win_90_close": "やったね。よくできるなぁ",
+  "win_80": "よくやったね! 可能性は無限大って感じ",
+  "win_70": "そうだ。やればできるよ",
+  "win_60": "おっとっと、ちょっときつかったな。もういっちょ、やってみるか",
+  "win_50": "残念だね...",
+  "win_bot": "ボットが走るの、おもしろかった？自分でもやってみてね",
 
-  "win_screen_play_again": "press enter to play again",
-  "win_screen_menu": "press esc to go back to song select",
+  "win_screen_play_again": "もう一回遊ぶために、円ターキーを押す",
+  "win_screen_menu": "歌を選ぶためにエスケープキーでもどる",
 
   "incorrect_sample": "この歌のサンプルレートは４４１００Hzじゃないので、プレイできない",
-  "restart_game": "変更が保存されました。 何かキーを押すとゲームを止める"
+  "error_loading_map": "マップのアップロード失敗",
+  "restart_game": "変更が保存されました。 ゲームを止めるためにキーを押す"
 }

@@ -24,7 +24,9 @@
   "WORM": "Worm",
 
   "botplay": "BOTPLAY",
+  "nofail": "NO FAIL",
   "wildcard": "WILDCARD",
+  "no_mods": "NO MODS",
   "score": "score",
   "pts": " pts",
   "combo": "combo",
@@ -46,5 +48,6 @@
   "win_screen_menu": "press esc to go back to song select",
 
   "incorrect_sample": "This song's sample rate is not 44100 Hz, so it cannot be played.",
+  "error_loading_map": "Failed to load map",
   "restart_game": "Changes have been saved. Press any key to quit the game."
 }

@@ -7,10 +7,18 @@ added_files = [
     ('coupons', 'coupons'),
     ('images', 'images'),
     ('locale', 'locale'),
-    ('maps', 'maps'),
+
+    ('maps/@01 [Bronze] Minus', 'maps/@01 [Bronze] Minus'),
+    ('maps/@02 [Silver] Computer Saloon', 'maps/@02 [Silver] Computer Saloon'),
+    ('maps/@03 [Gold] Radiant', 'maps/@03 [Gold] Radiant'),
+    ('maps/@04 [Platinum] Bongo Clickbait', 'maps/@04 [Platinum] Bongo Clickbait'),
+
     ('sounds', 'sounds'),
 
+    ('conversions.py', '.'),
+
     ('icon.png', '.'),
+    ('LICENSE.md', '.'),
     ('noto-sans.otf', '.'),
     ('noto-sans-license.txt', '.'),
     ('options.json', '.'),

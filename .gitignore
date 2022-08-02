@@ -19,3 +19,8 @@ maps/mope/
 /maps/Sugar Rush/
 /dist/
 /build/
+/maps/62.5/62.5.ogg
+/maps/62.5/62.5.vib
+maps/Universal Dance/Universal Dance.mp3
+maps/Universal Dance/Universal Dance.vib
+*.pyc
