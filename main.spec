@@ -10,7 +10,10 @@ added_files = [
     ('maps', 'maps'),
     ('sounds', 'sounds'),
 
+    ('conversions.py', '.'),
+    ('credits.txt', '.'),
     ('icon.png', '.'),
+    ('LICENSE.md', '.'),
     ('noto-sans.otf', '.'),
     ('noto-sans-license.txt', '.'),
     ('options.json', '.'),

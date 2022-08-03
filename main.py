@@ -1,20 +1,55 @@
 # Import
-import pstats
-
-from globals import *
-import pygame
-import random
+import cProfile
+import copy
 import datetime
-import piece
-import coupons
+import json
+import os
+import pstats
+import random
+import sys
+import traceback
+
+import pygame
 from mutagen.mp3 import MP3
 from mutagen.oggvorbis import OggVorbis
-import os
-import cProfile
-import json
-import copy
 
+import coupons
+import piece
+import globalvars
+
+"""
+import moviepy.editor
+import moviepy.video.fx.all
+
+# https://stackoverflow.com/questions/62870381/how-to-play-video-in-pygame-currently
+
+class VideoSprite(pygame.sprite.Sprite):
+    def __init__(self, rect, filename):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = pygame.Surface((rect.width, rect.height), pygame.HWSURFACE)
+        self.rect = self.image.get_rect()
+        self.rect.x = rect.x
+        self.rect.y = rect.y
+        self.video = moviepy.editor.VideoFileClip(filename).resize((self.rect.width, self.rect.height))
+        self.video_stop = False
+
+    def update(self, time=pygame.time.get_ticks()):
+        if not self.video_stop:
+            try:
+                raw_image = self.video.get_frame(time / 1000)  # /1000 for time in s
+                self.image = pygame.image.frombuffer(raw_image, (self.rect.width, self.rect.height), 'RGB')
+            except:
+                self.video_stop = True
+"""
 # Init
+
+game_dir = os.path.dirname(os.path.realpath(__file__))
+
+
+def asset(fn):
+    return f"{game_dir}/{fn}"
+
+
 pygame.mixer.pre_init(frequency=44100, size=-16, channels=1, buffer=64)
 
 pygame.init()
@@ -22,7 +57,7 @@ pygame.init()
 pygame.mixer.quit()
 pygame.mixer.init(frequency=44100, size=-16, channels=1, buffer=64)
 
-icon = pygame.image.load('icon.png')
+icon = pygame.image.load(asset('icon.png'))
 pygame.display.set_icon(icon)
 
 # Game variables
@@ -32,6 +67,7 @@ pieces_passed = 0
 elapsed_time = 0
 animation_state = 0
 incorrect_sample = False
+error_loading_map = False
 pieces = []
 increase_time = False
 game_state = "notice"
@@ -43,9 +79,10 @@ rating_rotate_dir = True
 song_len = 1
 piece_queue = []
 invisible_pieces = []
-render_dist = DEFAULT_RENDER_DISTANCE
-song_dir = f"{os.getcwd()}/maps/"
+render_dist = globalvars.DEFAULT_RENDER_DISTANCE
+song_dir = f"{game_dir}/maps/"
 songs = []
+song_name = ""
 song_idx = 0
 languages = []
 lang_idx = 0
@@ -57,7 +94,7 @@ use_sfx = True
 menu_initted = False
 menu_music = True
 start_len = 7235
-current_scroll_speed = DEFAULT_SCROLL_TIME
+current_scroll_speed = globalvars.DEFAULT_SCROLL_TIME
 lang = "en_US"
 locale = {}
 cfg = {
@@ -67,19 +104,25 @@ cfg = {
         pygame.K_o: "W",
         pygame.K_p: "L"
     },
-    "lang": "en_US"
+    "lang": "en_US",
+    "display_keys": True
 }
 use_keys = True
 SONG_END = pygame.USEREVENT + 1
 game_keys = [pygame.K_q, pygame.K_w, pygame.K_o, pygame.K_p]
+bp_color = (64, 64, 64)
+nf_color = (64, 64, 64)
+wc_color = (64, 64, 64)
+
+
+# tutorial_vid = VideoSprite(pygame.Rect(0, 0, globalvars.SCREEN_WIDTH, globalvars.SCREEN_HEIGHT), f"{game_dir}/images/tutorial.mp4")
 
 
 def save_json():
     global cfg
-    with open("options.json", "w", encoding="utf-8") as f:
+    with open(asset("options.json"), "w", encoding="utf-8") as f:
         cfg["lang"] = lang
         cfg["offset"] = offset
-        cfg["use_keys"] = int(use_keys)
         cfg["use_sfx"] = int(use_sfx)
         cfg["menu_music"] = int(menu_music)
 
@@ -88,8 +131,8 @@ def save_json():
         # don't save keys as integers
         for i in keybinds:
             val = keybinds[i]
-            print(i)
-            print(val)
+            # print(i)
+            # print(val)
             del cfg["keybinds"][i]
             cfg["keybinds"][pygame.key.name(int(i))] = val
 
@@ -100,9 +143,9 @@ def save_json():
 
 # Reload option files
 def load_json():
-    global locale, cfg, lang, game_keys, use_keys, offset, languages, default_lang_idx, use_sfx, menu_music
+    global locale, cfg, lang, game_keys, offset, languages, default_lang_idx, use_sfx, menu_music
     try:
-        opt = open(f"options.json", encoding="utf-8")
+        opt = open(asset("options.json"), encoding="utf-8")
         cfg = json.loads(opt.read())
 
         try:
@@ -119,7 +162,6 @@ def load_json():
             cfg["keybinds"] = {pygame.K_q: "B", pygame.K_w: "P", pygame.K_o: "W", pygame.K_p: "L"}
 
         lang = cfg.get("lang", "en_US")
-        use_keys = cfg.get("use_keys", 1)
         offset = cfg.get("offset", 0)
 
         use_sfx = cfg.get("use_sfx", 1)
@@ -127,19 +169,21 @@ def load_json():
         opt.close()
     except FileNotFoundError:
         print("Options file not found.")
+    except json.decoder.JSONDecodeError:
+        print("Loading options file failed, reverting to defaults")
 
     try:
-        lfile = open(f"locale/{lang}.json", encoding="utf-8")
+        lfile = open(asset(f"locale/{lang}.json"), encoding="utf-8")
         locale = json.loads(lfile.read())
         lfile.close()
     except FileNotFoundError:
         print(f"Could not find locale/{lang}.json, using English locale")
-        lfile = open(f"locale/en_US.json", encoding="utf-8")
+        lfile = open(asset("locale/en_US.json"), encoding="utf-8")
         locale = json.loads(lfile.read())
         lfile.close()
 
     try:
-        langfile = open("locale/languages.json", encoding="utf-8")
+        langfile = open(asset("locale/languages.json"), encoding="utf-8")
         languages = json.loads(langfile.read())
         lname = [key for key, value in languages.items() if value == lang]
         default_lang_idx = list(languages).index(lname[0])
@@ -157,13 +201,28 @@ def localize(string):
     return locale.get(string, string)
 
 
+def sort_maps(maps_to_sort):
+    # Make sure the maps beginning with at symbols go first
+    m = sorted(maps_to_sort)
+    at_syms = []
+    new_maps = []
+
+    for i in m:
+        if i.startswith("@"):
+            at_syms.append(i)
+        else:
+            new_maps.append(i)
+
+    return at_syms + new_maps
+
+
 # Get song list
-print(os.listdir(song_dir))
-for f in sorted(os.listdir(song_dir)):
+# print(os.listdir(song_dir))
+for f in sort_maps(os.listdir(song_dir)):
     try:
         has_chart = False
         has_song = False
-        for file in os.listdir(f"maps/{f}"):
+        for file in os.listdir(f"{game_dir}/maps/{f}"):
             if file.endswith(".vib"):
                 has_chart = True
             if file.endswith(".mp3") or file.endswith(".ogg"):
@@ -178,29 +237,34 @@ for f in sorted(os.listdir(song_dir)):
 def get_files_from_map(f):
     map_file = None
     music_file = None
-    for file in os.listdir(f"maps/{f}"):
+    for file in os.listdir(f"{game_dir}/maps/{f}"):
         if file.endswith(".vib") and map_file is None:
-            map_file = f"maps/{f}/{file}"
+            map_file = f"{game_dir}/maps/{f}/{file}"
         elif (file.endswith(".mp3") or file.endswith(".ogg")) and music_file is None:
-            music_file = f"maps/{f}/{file}"
+            music_file = f"{game_dir}/maps/{f}/{file}"
         if map_file and music_file:
             break
-    print((map_file, music_file))
-    return (map_file, music_file)
+    # print((map_file, music_file))
+    return map_file, music_file
 
 
 # Sounds
-botplay_on = pygame.mixer.Sound("sounds/botplay-on.wav")
-botplay_off = pygame.mixer.Sound("sounds/botplay-off.wav")
-navigate = pygame.mixer.Sound("sounds/navigate.wav")
-confirm = pygame.mixer.Sound("sounds/confirm.wav")
-locked = pygame.mixer.Sound("sounds/locked.wav")
-hit = pygame.mixer.Sound("sounds/hit-sound.wav")
-cb_sound = pygame.mixer.Sound("sounds/cb.wav")
-fail_sound = pygame.mixer.Sound("sounds/fail.wav")
+botplay_on = pygame.mixer.Sound(f"{game_dir}/sounds/botplay-on.wav")
+botplay_off = pygame.mixer.Sound(f"{game_dir}/sounds/botplay-off.wav")
+nofail_on = pygame.mixer.Sound(f"{game_dir}/sounds/nofail-on.wav")
+nofail_off = pygame.mixer.Sound(f"{game_dir}/sounds/nofail-off.wav")
+upgrade = pygame.mixer.Sound(f"{game_dir}/sounds/upgrade.wav")
+downgrade = pygame.mixer.Sound(f"{game_dir}/sounds/downgrade.wav")
+navigate = pygame.mixer.Sound(f"{game_dir}/sounds/navigate.wav")
+confirm = pygame.mixer.Sound(f"{game_dir}/sounds/confirm.wav")
+locked = pygame.mixer.Sound(f"{game_dir}/sounds/locked.wav")
+# tut = pygame.mixer.Sound(f"{game_dir}/images/tutorial.mp3")
+hit = pygame.mixer.Sound(f"{game_dir}/sounds/hit-sound.wav")
+hit_high = pygame.mixer.Sound(f"{game_dir}/sounds/hit-sound-high.wav")
+cb_sound = pygame.mixer.Sound(f"{game_dir}/sounds/cb.wav")
+fail_sound = pygame.mixer.Sound(f"{game_dir}/sounds/fail.wav")
 song_to_play = "badmans-funk"
 song_data = None
-
 
 # Splashes
 splashes = []
@@ -215,7 +279,7 @@ else:
     pygame.display.set_caption("Vib-Ribbon Minus - " + random.choice(splashes))
 
 # PyGame components
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+screen = pygame.display.set_mode((globalvars.SCREEN_WIDTH, globalvars.SCREEN_HEIGHT))
 clock = pygame.time.Clock()
 
 # Text
@@ -231,27 +295,28 @@ font_rating = pygame.font.Font("roboto.ttf", 120)
 # Images
 # I read that convert makes it run faster
 obstacles = {
-    "block": pygame.image.load("images/obstacles/block_small.png").convert_alpha(),
-    "loop": pygame.image.load("images/obstacles/loop_small.png").convert_alpha(),
-    "wave": pygame.image.load("images/obstacles/wave_small.png").convert_alpha(),
-    "pit": pygame.image.load("images/obstacles/pit_small.png").convert_alpha(),
+    "block": pygame.image.load(f"{game_dir}/images/obstacles/block_small.png").convert_alpha(),
+    "loop": pygame.image.load(f"{game_dir}/images/obstacles/loop_small.png").convert_alpha(),
+    "wave": pygame.image.load(f"{game_dir}/images/obstacles/wave_small.png").convert_alpha(),
+    "pit": pygame.image.load(f"{game_dir}/images/obstacles/pit_small.png").convert_alpha(),
 }
-for i in complex_obs:
+for i in globalvars.complex_obs:
     try:
-        obstacles[i.lower()] = pygame.image.load(f"images/obstacles/{i.lower()}.png").convert_alpha()
+        obstacles[i.lower()] = pygame.image.load(f"{game_dir}/images/obstacles/{i.lower()}.png").convert_alpha()
     except FileNotFoundError:
         print(f"File not found: {i.lower()}.png")
 
-wheel = pygame.image.load("images/menu/wheel.png").convert_alpha()
-star_img = pygame.image.load("images/menu/star.png").convert_alpha()
+wheel = pygame.image.load(f"{game_dir}/images/menu/wheel.png").convert_alpha()
+mods_img = pygame.image.load(f"{game_dir}/images/menu/mods.png").convert_alpha()
+star_img = pygame.image.load(f"{game_dir}/images/menu/star.png").convert_alpha()
 animations = {}
 
 
 class Star:
     # this class represents one star on the main menu
     def __init__(self):
-        self.x = random.randint(50, SCREEN_WIDTH - 50)
-        self.y = random.randint(56, SCREEN_HEIGHT // 2)
+        self.x = random.randint(50, globalvars.SCREEN_WIDTH - 50)
+        self.y = random.randint(56, globalvars.SCREEN_HEIGHT // 2)
         self.increasing = True
         self.size = random.randint(2, 100) / 100
         self.img = star_img
@@ -277,15 +342,15 @@ class Star:
         scrn.blit(img, img.get_rect(center=(self.x, self.y)))
 
 
-star_list = [Star() for i in range(0,5)]
+star_list = [Star() for i in range(0, 5)]
 
 
 def load_animation(anim):
     global animations
     animations[anim] = []
-    for i in os.listdir(f"images/{anim}"):
-        animations[anim].append(pygame.image.load(f"images/{anim}/{i}").convert_alpha())
-    print(animations)
+    for i in os.listdir(f"{game_dir}/images/{anim}"):
+        animations[anim].append(pygame.image.load(f"{game_dir}/images/{anim}/{i}").convert_alpha())
+    # print(animations)
 
 
 load_animation("chibri/rabbit/walking")
@@ -293,7 +358,7 @@ load_animation("chibri/frog/walking")
 load_animation("chibri/worm/walking")
 load_animation("chibri/super/walking")
 # Preload images for coupons
-coupon_imgs = coupons.load_coupon_images("coupons")
+coupon_imgs = coupons.load_coupon_images(f"{game_dir}/coupons")
 
 
 def scrolling_text(scrn: object, l: object, idx: object, **kwargs: object) -> object:
@@ -304,12 +369,12 @@ def scrolling_text(scrn: object, l: object, idx: object, **kwargs: object) -> ob
     # can be center or right
     anchor = kwargs.get("anchor", "right")
     intl = kwargs.get("intl", False)
-    center = SCREEN_HEIGHT // 2
+    center = globalvars.SCREEN_HEIGHT // 2
     y_pos = int(kwargs.get("y", center))
     for i, item in enumerate(l):
         y = y_pos + (division * (i - idx)) - 17
         # don't render if not on the screen
-        if y > SCREEN_HEIGHT:
+        if y > globalvars.SCREEN_HEIGHT:
             break
         if y < 0:
             continue
@@ -330,12 +395,12 @@ def scrolling_text(scrn: object, l: object, idx: object, **kwargs: object) -> ob
             f = font_respectable_int.render(text_item * (anchor == "right"), True, option_color)
         else:
             f = font_respectable.render(text_item * (anchor == "right"), True, option_color)
-        
+
         match anchor:
             case "right":
-                rect = f.get_rect(topright=(SCREEN_WIDTH + abs(-(i - idx) ** 2) - distance, y))
+                rect = f.get_rect(topright=(globalvars.SCREEN_WIDTH + abs(-(i - idx) ** 2) - distance, y))
             case "center":
-                rect = f.get_rect(topcenter=(SCREEN_WIDTH // 2, y))
+                rect = f.get_rect(topcenter=(globalvars.SCREEN_WIDTH // 2, y))
         scrn.blit(f, rect)
 
 
@@ -344,7 +409,7 @@ def song():
     global elapsed_time, increase_time, pieces, botplay_queue, score, \
         combo, song_len, piece_queue, percent, perc_calc, render_dist, pieces_passed, \
         menu_initted, miss_streak, hit_streak, form, game_state, incorrect_sample, latency, \
-        hits, fc, start_len, modifiers, max_combo, note_amt
+        hits, fc, start_len, modifiers, max_combo, note_amt, error_loading_map, song_name
     menu_initted = False
     piece_queue = []
     pieces_passed = 0
@@ -358,7 +423,11 @@ def song():
     combo = 0
     max_combo = 0
     fc = True
-    parsed = piece.parse_file(song_data[0])
+    try:
+        parsed = piece.parse_file(song_data[0])
+    except:
+        traceback.print_exc()
+        return "error_loading"
     pieces = parsed[0]
     note_amt = len(pieces)
     render_dist = parsed[1]
@@ -371,8 +440,11 @@ def song():
     if not use_keys:
         modifiers.append(localize("wildcard"))
 
+    if nofail:
+        modifiers.append(localize("nofail"))
+
     # This is only used to analyze the start sound
-    start = MP3("sounds/start.mp3")
+    start = MP3(f"{game_dir}/sounds/start.mp3")
 
     # Analyze the song that we're about to play (mp3)
     if song_data[1].endswith(".mp3"):
@@ -394,7 +466,7 @@ def song():
     song.is_song_active = "Active"
 
     # Load the songs
-    pygame.mixer.music.load("sounds/start.mp3")
+    pygame.mixer.music.load(f"{game_dir}/sounds/start.mp3")
     pygame.mixer.music.queue(song_data[1])
     pygame.mixer.music.set_endevent(SONG_END)
     start_len = int(start.info.length * 1000)
@@ -457,7 +529,7 @@ def update_fps() -> object:
 # Variables
 
 song.is_song_active = "Inactive"
-txt = font.render('Version 0.1.0', True, pygame.Color(128, 128, 128))
+txt = font.render('Version 0.1.1', True, pygame.Color(128, 128, 128))
 score = 0
 miss_streak = 0
 hit_streak = 0
@@ -472,9 +544,8 @@ keys_pressed = {
     "P": False,
     "L": False,
     "W": False,
-    "oops": False  # placeholder
+    "oops": False  # placeholder, do not remove
 }
-
 
 player_color = "white"
 
@@ -530,42 +601,42 @@ def find_id(pl, id):
 
 
 def form_check():
-    global form, miss_streak, hit_streak
+    global form, miss_streak, hit_streak, nofail
     if hit_streak > 20:
         miss_streak = 0
         hit_streak = 0
+        if form != "SUPER":
+            pygame.mixer.Sound.play(upgrade)
         match form:
             case "WORM":
-                print("frog")
                 return "FROG"
             case "FROG":
-                print("rabbit")
                 return "RABBIT"
             case "RABBIT":
-                print("super")
                 return "SUPER"
     if miss_streak > 0 and form == "SUPER":
         miss_streak = 0
-        print("super miss")
+        pygame.mixer.Sound.play(downgrade)
         return "RABBIT"
     elif miss_streak > 12:
-        miss_streak = 0
         match form:
             case "WORM":
-                print("fail")
-                return "FAIL"
+                if not nofail:
+                    return "FAIL"
             case "FROG":
-                print("worm")
+                pygame.mixer.Sound.play(downgrade)
+                miss_streak = 0
                 return "WORM"
             case "RABBIT":
-                print("frog")
+                pygame.mixer.Sound.play(downgrade)
+                miss_streak = 0
                 return "FROG"
     return form
 
 
 def remove_bad_pc(p):
     # Returns a boolean
-    return not p.time < elapsed_time - HIT_LINE_LOC
+    return not p.time < elapsed_time - globalvars.HIT_LINE_LOC
 
 
 def remove_bad_pc_hit(p):
@@ -578,19 +649,39 @@ def playsound(snd):
         pygame.mixer.Sound.play(snd)
 
 
-def toggle_botplay():
-    global botplay
-    botplay = not botplay
-    if botplay:
-        playsound(botplay_on)
-    else:
-        playsound(botplay_off)
+def toggle_mode(str):
+    global botplay, nofail, use_keys, wc_color, nf_color, bp_color
+    match str:
+        case "botplay":
+            botplay = not botplay
+            if botplay:
+                playsound(botplay_on)
+                bp_color = (255, 172, 172)
+            else:
+                playsound(botplay_off)
+                bp_color = (64, 64, 64)
+        case "nofail":
+            nofail = not nofail
+            if nofail:
+                playsound(nofail_on)
+                nf_color = (107, 216, 216)
+            else:
+                playsound(nofail_off)
+                nf_color = (64, 64, 64)
+        case "wildcard":
+            use_keys = not use_keys
+            if not use_keys:
+                playsound(botplay_on)
+                wc_color = (255, 218, 101)
+            else:
+                playsound(botplay_off)
+                wc_color = (64, 64, 64)
 
 
 judge_txt = judge_time_text(judge_time(128000))
 botplay_queue = []
 botplay = False
-
+nofail = False
 
 # Initialize score object
 fl = coupons.FlakeList(coupon_imgs, y=60)
@@ -630,6 +721,8 @@ def main_loop():
                 game_state = score_screen()
             case "fail":
                 game_state = fail_screen()
+            case "video":
+                game_state = video_screen()
             case "quit":
                 pygame.quit()
                 # profiling
@@ -637,7 +730,7 @@ def main_loop():
                 stats = pstats.Stats(pr)
                 stats.sort_stats(pstats.SortKey.TIME)
                 stats.print_stats()
-                exit()
+                sys.exit()
 
 
 def blank_screen():
@@ -658,6 +751,7 @@ def blank_screen():
 def break_combo():
     global combo, pieces_passed, percent, miss_streak, hit_streak, fc
     fc = False
+    piece_queue[0].broken = True
     pieces_passed += 1
     miss_streak += 1
     hit_streak = 0
@@ -684,7 +778,6 @@ def calculate_score(j):
     base_score += js.index(j)
 
     return base_score
-
 
 
 def hit_piece():
@@ -727,16 +820,23 @@ def hit_piece():
     keys_pressed["oops"] = False
 
     if the_piece.hit:
-        print(f"[HIT] Piece at {the_piece.time} already hit (elapsed_time: {elapsed_time}) (absolute_times[0]: {absolute_times[0]}) (absolute_times[1]: {absolute_times[1]})")
+        # print(f"[HIT] Piece at {the_piece.time} already hit (elapsed_time: {elapsed_time}) (absolute_times[0]: {absolute_times[0]}) (absolute_times[1]: {absolute_times[1]})")
         return
 
     time_since_last_hit = elapsed_time - last_hit
     last_hit = elapsed_time
     time_judgement = judge_time(the_piece.time - elapsed_time)
+
+    # if time_judgement[0] == "":
+    #    playsound(hit_high)
+    # else:
+    #    playsound(hit)
+
     try:
         # Debug stuff
         print(f"[PIECE TIMES] 0: ({good_list[0].time} ms) {times[0]}; 1: ({good_list[1].time} ms) {times[1]}")
-        print(f"[STATS] {the_piece.type} at {the_piece.time} ms hit at {elapsed_time} ms; {time_judgement[0] or '(no judgement)'} \
+        print(
+            f"[STATS] {the_piece.type} at {the_piece.time} ms hit at {elapsed_time} ms; {time_judgement[0] or '(no judgement)'} \
 ({elapsed_time - the_piece.time} ms); TSLH: {time_since_last_hit} ms")
     except IndexError:
         # if there is no next piece
@@ -747,7 +847,7 @@ def hit_piece():
 
     if time_judgement[0] != "":
         the_piece_idx = find_id(piece_queue, the_piece.id)
-        print(f"[ID] Piece at {the_piece.time} has an id of {the_piece_idx}")
+        # print(f"[ID] Piece at {the_piece.time} has an id of {the_piece_idx}")
 
         # Check if correct keys are pressed
         if piece_queue[the_piece_idx].keys == keys_pressed or botplay or not use_keys:
@@ -801,8 +901,31 @@ def hit_piece():
                 combo_stretch = 60
                 rating_rotate_dir = not rating_rotate_dir
 
-
             judge_txt = judge_time_text(time_judgement)
+
+
+def b_and_w(b):
+    # Takes a boolean, and returns black if false and white if true
+    if b:
+        return "white"
+    return "black"
+
+
+def render_keys():
+    if not cfg.get("display_keys", True):
+        return
+    y = globalvars.SCREEN_HEIGHT - 150
+    key_inds = [
+        font.render("B", True, b_and_w(keys_pressed["B"])),
+        font.render("P", True, b_and_w(keys_pressed["P"])),
+        font.render("W", True, b_and_w(keys_pressed["W"])),
+        font.render("L", True, b_and_w(keys_pressed["L"])),
+    ]
+    # for loop too hard... :(
+    screen.blit(key_inds[0], key_inds[0].get_rect(bottomright=((globalvars.SCREEN_WIDTH // 2) - 40, y)))
+    screen.blit(key_inds[1], key_inds[1].get_rect(bottomright=((globalvars.SCREEN_WIDTH // 2) - 20, y)))
+    screen.blit(key_inds[2], key_inds[2].get_rect(bottomleft=((globalvars.SCREEN_WIDTH // 2) + 20, y)))
+    screen.blit(key_inds[3], key_inds[3].get_rect(bottomleft=((globalvars.SCREEN_WIDTH // 2) + 40, y)))
 
 
 ############################################################
@@ -834,9 +957,9 @@ selected_option = 0
 def title_pre_screen():
     global game_started, menu_initted, menu_music
     menu_initted = False
-    print(pygame.key.get_pressed())
+    # print(pygame.key.get_pressed())
     if menu_music:
-        pygame.mixer.music.load("sounds/theme.mp3")
+        pygame.mixer.music.load(f"{game_dir}/sounds/theme.mp3")
         pygame.mixer.music.play(-1)
     game_started = True
 
@@ -845,7 +968,7 @@ def init_menu():
     global menu_initted, menu_music, game_started, selected_option
     game_started = False
     if menu_music:
-        pygame.mixer.music.load("sounds/menu.mp3")
+        pygame.mixer.music.load(f"{game_dir}/sounds/menu.mp3")
         pygame.mixer.music.play(-1)
     selected_option = 0
     menu_initted = True
@@ -873,7 +996,7 @@ def notice_screen():
 
     # God, I wish PyGame supported newlines
     for i in notice_lines:
-        screen.blit(i[0], i[0].get_rect(center=(SCREEN_WIDTH // 2, i[1])))
+        screen.blit(i[0], i[0].get_rect(center=(globalvars.SCREEN_WIDTH // 2, i[1])))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -899,16 +1022,16 @@ def title_screen():
     screen.fill((0, 0, 0))
 
     screen.blit(update_fps(), (10, 10))
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
 
     title_text = font_large.render("vib-ribbon minus", True, "white")
     # The subtitle text is for readability in other languages.
     subtitle_text = font.render(localize("subtitle"), True, "white")
     caption_text = font_medium.render(localize("start_msg"), True, "white")
 
-    screen.blit(title_text, (title_text.get_rect(center=(SCREEN_WIDTH // 2, 100))))
-    screen.blit(subtitle_text, (subtitle_text.get_rect(center=(SCREEN_WIDTH // 2, 150))))
-    screen.blit(caption_text, (caption_text.get_rect(center=(SCREEN_WIDTH // 2, 480))))
+    screen.blit(title_text, (title_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 100))))
+    screen.blit(subtitle_text, (subtitle_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 150))))
+    screen.blit(caption_text, (caption_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 480))))
 
     # Coupons
     fl.change_y(360)
@@ -932,9 +1055,9 @@ def title_screen():
 menu_anim = 0
 zzz_alpha = 255
 
-ribbon_chibri_1 = pygame.image.load("images/menu/ribbon_chibri_1.png").convert_alpha()
-ribbon_chibri_2 = pygame.image.load("images/menu/ribbon_chibri_2.png").convert_alpha()
-zzz = pygame.image.load("images/menu/zzz.png").convert_alpha()
+ribbon_chibri_1 = pygame.image.load(f"{game_dir}/images/menu/ribbon_chibri_1.png").convert_alpha()
+ribbon_chibri_2 = pygame.image.load(f"{game_dir}/images/menu/ribbon_chibri_2.png").convert_alpha()
+zzz = pygame.image.load(f"{game_dir}/images/menu/zzz.png").convert_alpha()
 
 
 def chibri_bg():
@@ -948,26 +1071,26 @@ def chibri_bg():
     match menu_anim:
         case menu_anim if menu_anim > 300:
             frame = ribbon_chibri_1
-            screen.blit(zzz, zzz.get_rect(center=(320, SCREEN_HEIGHT - 220)))
+            screen.blit(zzz, zzz.get_rect(center=(320, globalvars.SCREEN_HEIGHT - 220)))
             zzz_alpha -= 1
             zzz.set_alpha(zzz_alpha)
         case _:
             frame = ribbon_chibri_2
-    if SCREEN_WIDTH != 1280:
+    if globalvars.SCREEN_WIDTH != 1280:
         # PyGame is like the PlayStation 1 in that it doesn't have decimal pixel locations
-        frame = pygame.transform.scale(frame, (SCREEN_WIDTH, int(SCREEN_HEIGHT * (208/720))))
-    screen.blit(frame, frame.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 200)))
+        frame = pygame.transform.scale(frame, (globalvars.SCREEN_WIDTH, int(globalvars.SCREEN_HEIGHT * (208 / 720))))
+    screen.blit(frame, frame.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT - 200)))
     for i in star_list:
         i.blit(screen)
 
 
 def main_menu():
-    global SCREEN_WIDTH, SCREEN_HEIGHT, fl, selected_option
+    global fl, selected_option
     clock.tick(240)
     screen.fill("black")
     if not menu_initted:
         init_menu()
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
 
     # Add Chibri to the menu
     chibri_bg()
@@ -979,7 +1102,8 @@ def main_menu():
             color = "white"
         s = menu_options[i]
         t = font_large.render(s, True, pygame.Color(color))
-        screen.blit(t, t.get_rect(topright=((SCREEN_WIDTH - 120), (SCREEN_HEIGHT // 2) + (i * 60) - 60)))
+        screen.blit(t, t.get_rect(
+            topright=((globalvars.SCREEN_WIDTH - 120), (globalvars.SCREEN_HEIGHT // 2) + (i * 60) - 60)))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -997,8 +1121,9 @@ def main_menu():
                             return "options_menu"
                         case 2:
                             pygame.mixer.Sound.stop(confirm)
+                            # playsound(tut)
                             playsound(locked)
-                            return "main_menu"
+                            # return "video"
                         case 3:
                             selected_option = 0
                             return "title"
@@ -1029,7 +1154,8 @@ def main_menu():
 
 # SONG SELECT
 def song_select_screen():
-    global song_idx, song_to_play, game_started, song_data, increase_time, incorrect_sample, menu_initted
+    global song_idx, song_to_play, game_started, song_data, increase_time, incorrect_sample, menu_initted, bp_color, \
+        wc_color, nf_color, error_loading_map
 
     if not menu_initted:
         init_menu()
@@ -1037,19 +1163,40 @@ def song_select_screen():
     clock.tick(240)
     screen.fill("black")
 
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
     chibri_bg()
     scrolling_text(screen, songs, song_idx)
 
-    screen.blit(wheel, wheel.get_rect(center=(SCREEN_WIDTH - 60, SCREEN_HEIGHT // 2)))
+    screen.blit(wheel, wheel.get_rect(center=(globalvars.SCREEN_WIDTH - 60, globalvars.SCREEN_HEIGHT // 2)))
+    screen.blit(mods_img, mods_img.get_rect(bottomleft=(0, globalvars.SCREEN_HEIGHT - 50)))
 
-    if botplay:
-        bp_txt = font_respectable.render(localize("botplay"), True, "white")
-        screen.blit(bp_txt, bp_txt.get_rect(bottomleft=(10, SCREEN_HEIGHT - 10)))
+    # This part of the code makes sure the mod labels are evenly spaced out
+
+    mod_labels = [
+        [localize("botplay"), bp_color],
+        [localize("nofail"), nf_color],
+        [localize("wildcard"), wc_color]
+    ]
+
+    for i in mod_labels:
+        i.append(font_respectable.render(i[0], True, i[1]))
+
+    for i in range(0, len(mod_labels)):
+        if i > 0:
+            rect = mod_labels[i][2].get_rect(bottomleft=(mod_labels[i - 1][3].right + 20, globalvars.SCREEN_HEIGHT - 5))
+            mod_labels[i].append(rect)
+            screen.blit(mod_labels[i][2], rect)
+        else:
+            rect = mod_labels[i][2].get_rect(bottomleft=(10, globalvars.SCREEN_HEIGHT - 5))
+            mod_labels[i].append(rect)
+            screen.blit(mod_labels[i][2], rect)
 
     if incorrect_sample:
         is_txt = font.render(localize("incorrect_sample"), True, "white")
-        screen.blit(is_txt, is_txt.get_rect(bottomright=(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 10)))
+        screen.blit(is_txt, is_txt.get_rect(bottomright=(globalvars.SCREEN_WIDTH - 10, globalvars.SCREEN_HEIGHT - 10)))
+    elif error_loading_map:
+        is_txt = font.render(localize("error_loading_map"), True, "white")
+        screen.blit(is_txt, is_txt.get_rect(bottomright=(globalvars.SCREEN_WIDTH - 10, globalvars.SCREEN_HEIGHT - 10)))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -1069,19 +1216,30 @@ def song_select_screen():
                     song_to_play = songs[song_idx]
                     song_data = get_files_from_map(song_to_play)
                     playsound(confirm)
-                    if song() == "sample rate":
+                    song_call = song()
+                    if song_call == "sample rate":
                         menu_initted = True
                         increase_time = False
                         incorrect_sample = True
+                        return "song_select"
+                    elif song_call == "error_loading":
+                        menu_initted = True
+                        increase_time = False
+                        error_loading_map = True
                         return "song_select"
                     return "game"
                 case pygame.K_ESCAPE:
                     playsound(confirm)
                     return "main_menu"
                 case pygame.K_b:
-                    toggle_botplay()
+                    toggle_mode("botplay")
+                case pygame.K_n:
+                    toggle_mode("nofail")
+                case pygame.K_w:
+                    toggle_mode("wildcard")
         if event.type == pygame.MOUSEBUTTONDOWN:
             incorrect_sample = False
+            error_loading_map = False
             if event.button == 4:
                 if song_idx != 0:
                     song_idx -= 1
@@ -1096,12 +1254,10 @@ def song_select_screen():
 
 
 def options_menu():
-    global SCREEN_WIDTH, SCREEN_HEIGHT, fl, selected_option, menu_music, lang_idx, use_sfx
+    global fl, selected_option, menu_music, lang_idx, use_sfx, cfg
     clock.tick(240)
     screen.fill("black")
-    if not menu_initted:
-        init_menu()
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
 
     chibri_bg()
 
@@ -1112,7 +1268,8 @@ def options_menu():
             color = "white"
         s = options_options[i]
         t = font_large.render(s, True, pygame.Color(color))
-        screen.blit(t, t.get_rect(topright=((SCREEN_WIDTH - 120), (SCREEN_HEIGHT // 2) + (i * 60) - 60)))
+        screen.blit(t, t.get_rect(
+            topright=((globalvars.SCREEN_WIDTH - 120), (globalvars.SCREEN_HEIGHT // 2) + (i * 60) - 60)))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -1132,13 +1289,17 @@ def options_menu():
                                 pygame.mixer.music.stop()
                             else:
                                 menu_music = True
-                                pygame.mixer.music.load("sounds/menu.mp3")
+                                pygame.mixer.music.load(f"{game_dir}/sounds/menu.mp3")
                                 pygame.mixer.music.play(-1)
                         case 2:
                             use_sfx = not use_sfx
-                        case _:
+                        # case 3:
+                        #     cfg["display_keys"] = not cfg.get("display_keys", True)
+                        case 3:
                             selected_option = 0
                             return "main_menu"
+                    save_json()
+                    load_json()
 
                 case pygame.K_ESCAPE:
                     playsound(confirm)
@@ -1167,17 +1328,12 @@ def language_menu():
     global lang_idx, lang
     clock.tick(240)
     screen.fill("black")
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
 
-    # intl=True means to render the text in Noto sans
+    # intl=True means to render the text in Noto Sans
     scrolling_text(screen, list(languages), lang_idx, intl=True)
-    screen.blit(wheel, wheel.get_rect(center=(SCREEN_WIDTH - 60, SCREEN_HEIGHT // 2)))
+    screen.blit(wheel, wheel.get_rect(center=(globalvars.SCREEN_WIDTH - 60, globalvars.SCREEN_HEIGHT // 2)))
     chibri_bg()
-
-    temp_txt = font.render(
-        "Version 0.1.0 may have unfinished locales. However, the game should fully support English, and partially"
-        " Japanese at this time.",
-        True, "white")
-    screen.blit(temp_txt, temp_txt.get_rect(bottomleft=(10, SCREEN_HEIGHT - 10)))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -1221,7 +1377,8 @@ def language_purgatory():
     screen.fill("black")
 
     restart_text = font_int.render(localize("restart_game"), True, "white")
-    screen.blit(restart_text, restart_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)))
+    screen.blit(restart_text,
+                restart_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT // 2)))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -1234,13 +1391,13 @@ def language_purgatory():
 
 
 def pause_screen():
-    global SCREEN_WIDTH, SCREEN_HEIGHT, fl, selected_option
+    global fl, selected_option
     clock.tick(240)
     screen.fill((0, 0, 0))
 
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
     paused_text = font_large.render(localize("pause_text"), True, pygame.Color(255, 255, 255))
-    screen.blit(paused_text, paused_text.get_rect(center=(SCREEN_WIDTH // 2, 50)))
+    screen.blit(paused_text, paused_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 50)))
 
     # Coupons
     fl.change_y(50)
@@ -1253,7 +1410,7 @@ def pause_screen():
         else:
             s = pause_options[i]
         t = font.render(s, True, pygame.Color((255, 255, 255)))
-        screen.blit(t, t.get_rect(center=(SCREEN_WIDTH // 2, (SCREEN_HEIGHT // 2) + (i * 30))))
+        screen.blit(t, t.get_rect(center=(globalvars.SCREEN_WIDTH // 2, (globalvars.SCREEN_HEIGHT // 2) + (i * 30))))
 
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
@@ -1305,7 +1462,7 @@ def pause_screen():
 
 
 def game_screen():
-    global HIT_LINE_LOC, RIBBON_LOC, player_color, score, combo, elapsed_time, judge_txt, pieces, combo, piece_queue, \
+    global player_color, score, combo, elapsed_time, judge_txt, pieces, combo, piece_queue, \
         combo_stretch, rating_rotate_dir, rating_show, cfg, keys_pressed, miss_streak, animation_state, selected_option, \
         invisible_pieces, form, hit_streak, current_scroll_speed
     clock.tick(240)
@@ -1313,10 +1470,12 @@ def game_screen():
     screen.fill((0, 0, 0))
 
     # Hit line
-    pygame.draw.line(screen, (128, 128, 128), (HIT_LINE_LOC, 0), (HIT_LINE_LOC, SCREEN_HEIGHT), 3)
+    pygame.draw.line(screen, (128, 128, 128), (globalvars.HIT_LINE_LOC, 0),
+                     (globalvars.HIT_LINE_LOC, globalvars.SCREEN_HEIGHT), 3)
 
     # Ribbon
-    pygame.draw.line(screen, (255, 255, 255), (0, RIBBON_LOC), (SCREEN_WIDTH, RIBBON_LOC), 3)
+    pygame.draw.line(screen, (255, 255, 255), (0, globalvars.RIBBON_LOC),
+                     (globalvars.SCREEN_WIDTH, globalvars.RIBBON_LOC), 3)
 
     # Pieces
     if len(piece_queue) < render_dist and len(pieces) > 0:
@@ -1332,21 +1491,29 @@ def game_screen():
             current_scroll_speed = pc.scroll_time
             fp = False
         x = pc.x(elapsed_time)
-        pc.blit(elapsed_time, RIBBON_LOC, obstacles, screen)
-        pygame.draw.line(screen, (128, 128, 128), (x, RIBBON_LOC), (x, SCREEN_HEIGHT), 2)
+        pc.blit(elapsed_time, globalvars.RIBBON_LOC, obstacles, screen)
+        pygame.draw.line(screen, (128, 128, 128), (x, globalvars.RIBBON_LOC), (x, globalvars.SCREEN_HEIGHT), 2)
 
     if len(piece_queue) > 0:
-        if piece_queue[0].time < elapsed_time - HIT_LINE_LOC:
+        if piece_queue[0].time < elapsed_time - globalvars.HIT_LINE_LOC:
             if not piece_queue[0].hit and piece_queue[0].time != -10000:
                 break_combo()
             del piece_queue[0]
-
+        """
+        # These are making the game act all fucky wucky
+        if not piece_queue[0].hit and piece_queue[0].time != -10000 and \
+                elapsed_time > piece_queue[0].time + 164 and not piece_queue[0].broken:
+            break_combo()
+        # print(globalvars.HIT_LINE_LOC)
+        if piece_queue[0].time < elapsed_time - piece_queue[0].scroll_time:
+            del piece_queue[0]
+        """
     # Animation
     if animation_state >= 3999:
         animation_state = 0
     try:
         anim_img = animations[f"chibri/{form.lower()}/walking"][animation_state // 1000]
-        screen.blit(anim_img, anim_img.get_rect(bottomright=(HIT_LINE_LOC, RIBBON_LOC)))
+        screen.blit(anim_img, anim_img.get_rect(bottomright=(globalvars.HIT_LINE_LOC, globalvars.RIBBON_LOC)))
         animation_state += 30000 // current_scroll_speed
         # print(f'{30000 // current_scroll_speed} = 300 / {current_scroll_speed}')
     except IndexError:
@@ -1360,7 +1527,7 @@ def game_screen():
 
     # Text
     screen.blit(update_fps(), (10, 10))
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
 
     # Botplay hitting
     if botplay and len(botplay_queue):
@@ -1383,7 +1550,7 @@ def game_screen():
             match event.key:
                 case k if k in game_keys:
                     if not botplay:
-                        print(translate_key(event.key))
+                        # print(translate_key(event.key))
                         keys_pressed[translate_key(event.key)] = True
                         player_color = "red"
                         hit_piece()
@@ -1405,15 +1572,16 @@ def game_screen():
                 # case pygame.K_RIGHT:
                 # elapsed_time += 1
 
-        """case pygame.K_i:
-            RIBBON_LOC -= 10
-        case pygame.K_j:
-            HIT_LINE_LOC -= 10
-        case pygame.K_k:
-            RIBBON_LOC += 10
-        case pygame.K_l:
-            HIT_LINE_LOC += 10
-        """
+                # case pygame.K_i:
+                #     globalvars.RIBBON_LOC -= 10
+                # case pygame.K_j:
+                #     globalvars.HIT_LINE_LOC -= 10
+                #
+                # case pygame.K_k:
+                #     globalvars.RIBBON_LOC += 10
+                # case pygame.K_l:
+                #     globalvars.HIT_LINE_LOC += 10
+
         if event.type == pygame.KEYUP:
             player_color = "white"
             keys_pressed[translate_key(event.key)] = False
@@ -1421,16 +1589,16 @@ def game_screen():
         if event.type == SONG_END:
             if elapsed_time < 0:
                 # if the song hasn't actually started yet
-                print(elapsed_time)
-                #pygame.mixer.music.rewind()
-                print(elapsed_time)
+                # print(elapsed_time)
+                # pygame.mixer.music.rewind()
+                # print(elapsed_time)
                 elapsed_time = offset
         if event.type == pygame.QUIT:
             return "quit"
 
     # Success theme
     if elapsed_time >= song_len:
-        pygame.mixer.music.load("sounds/success.mp3")
+        pygame.mixer.music.load(f"{game_dir}/sounds/success.mp3")
         pygame.mixer.music.play()
         return "score"
 
@@ -1438,20 +1606,21 @@ def game_screen():
 
     # Debug Info
     # elapsed_time
-    ms_txt = font.render(str(elapsed_time), True, pygame.Color(128, 128, 128))
+    # ms_txt = font.render(str(elapsed_time), True, pygame.Color(128, 128, 128))
     # Song enabled?
-    song_txt = font.render(f"Song: {song.is_song_active}", True, pygame.Color(128, 0, 128))
+    # song_txt = font.render(f"Song: {song.is_song_active}", True, pygame.Color(128, 0, 128))
     # Amount of pieces loaded
-    length_txt = font.render(f"{len(pieces)} pieces remaining", True, pygame.Color(128, 0, 128))
-    queue_txt = font.render(f"{len(piece_queue)} pieces in queue", True, pygame.Color(128, 0, 128))
+    # length_txt = font.render(f"{len(pieces)} pieces remaining", True, pygame.Color(128, 0, 128))
+    # queue_txt = font.render(f"{len(piece_queue)} pieces in queue", True, pygame.Color(128, 0, 128))
     # Score
     score_txt = font_respectable.render(str(score), True, pygame.Color(255, 255, 255))
     # Combo
     combo_txt = font_large.render(f"{combo}x", True, pygame.Color(255, 255, 255))
-    # Form text
-    debug_form_txt = font.render(f"Miss streak: {miss_streak}, Hit streak: {hit_streak}, Form: {localize(form)}, Latency: \
-{round(latency, 2)} ms", True, pygame.Color(128, 128, 128))
 
+    # name_txt = font_respectable.render(song_to_play, True, pygame.Color(255,255,255))
+    # Form text
+    # debug_form_txt = font.render(f"Miss streak: {miss_streak}, Hit streak: {hit_streak}, Form: {localize(form)}, Latency: \
+    # {round(latency, 2)} ms", True, pygame.Color(128, 128, 128))
 
     # Combo stretching
     if combo_stretch:
@@ -1465,34 +1634,43 @@ def game_screen():
     # Time remaining
     time_remaining_txt = font.render(convertMillis(time_left_ms), True, pygame.Color(128, 128, 128))
 
-    # screen.blit(ms_txt, (ms_txt.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 10))))
-    screen.blit(percent_txt, (percent_txt.get_rect(topright=(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 40))))
+    # screen.blit(ms_txt, (ms_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT - 10))))
+    screen.blit(percent_txt,
+                (percent_txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, globalvars.SCREEN_HEIGHT - 40))))
     # screen.blit(song_txt, (10, 34))
     # screen.blit(length_txt, (10, 55))
     # screen.blit(queue_txt, (10, 78))
 
     # Timer that, if above zero, shows the judgement on the screen
     if rating_show:
-        screen.blit(judge_txt, (judge_txt.get_rect(center=(SCREEN_WIDTH // 2, 100))))
+        screen.blit(judge_txt, (judge_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 100))))
         rating_show -= 1
 
-    screen.blit(score_txt, (score_txt.get_rect(center=(SCREEN_WIDTH // 2, 30))))
-    # screen.blit(debug_form_txt, (debug_form_txt.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 150))))
+    screen.blit(score_txt, (score_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 30))))
+    # screen.blit(debug_form_txt, (debug_form_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT - 150))))
 
     sideform = font_medium.render(f'Form: {localize(form)}', True, pygame.Color(255, 255, 255))
     sidemiss = font_medium.render(f'Miss Streak: {miss_streak}', True, pygame.Color(255, 255, 255))
     sidelatency = font_medium.render(f'Latency: {round(latency, 2)}', True, pygame.Color(255, 255, 255))
-    screen.blit(sideform, (sideform.get_rect(bottomright=(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 110))))
-    screen.blit(sidemiss, (sidemiss.get_rect(bottomright=(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 80))))
-    screen.blit(sidelatency, (sidelatency.get_rect(bottomright=(SCREEN_WIDTH - 10, SCREEN_HEIGHT - 50))))
+    screen.blit(sideform,
+                (sideform.get_rect(bottomright=(globalvars.SCREEN_WIDTH - 10, globalvars.SCREEN_HEIGHT - 110))))
+    screen.blit(sidemiss,
+                (sidemiss.get_rect(bottomright=(globalvars.SCREEN_WIDTH - 10, globalvars.SCREEN_HEIGHT - 80))))
+    screen.blit(sidelatency,
+                (sidelatency.get_rect(bottomright=(globalvars.SCREEN_WIDTH - 10, globalvars.SCREEN_HEIGHT - 50))))
 
-    screen.blit(combo_txt, combo_txt.get_rect(bottomleft=(10, SCREEN_HEIGHT - 5)))
-    screen.blit(time_remaining_txt, (time_remaining_txt.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 75))))
+    screen.blit(combo_txt, combo_txt.get_rect(bottomleft=(10, globalvars.SCREEN_HEIGHT - 5)))
+    screen.blit(time_remaining_txt,
+                (time_remaining_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT - 75))))
+
+    render_keys()
+    # screen.blit(name_txt, name_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 100)))
 
     if len(modifiers):
         # Modifier text
         botplay_text = font_respectable.render(", ".join(modifiers), True, pygame.Color((128, 128, 128)))
-        screen.blit(botplay_text, (botplay_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100))))
+        screen.blit(botplay_text,
+                    (botplay_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT - 100))))
 
     if increase_time:
         if cfg.get('sync_with_music', False):
@@ -1502,7 +1680,7 @@ def game_screen():
                 elapsed_time = pygame.mixer.music.get_pos() + offset
                 # get_pos returns a value less than zero when the music has stopped
                 if elapsed_time < 0:
-                    pygame.mixer.music.load("sounds/success.mp3")
+                    pygame.mixer.music.load(f"{game_dir}/sounds/success.mp3")
                     pygame.mixer.music.play()
                     return "score"
         else:
@@ -1519,7 +1697,7 @@ def score_screen():
     clock.tick(240)
     screen.fill("black")
 
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
     grade = ""
 
     match percent:
@@ -1582,7 +1760,7 @@ def score_screen():
     else:
         paused_text = font_large.render(localize("win_bot"), True, pygame.Color(255, 255, 255))
 
-    screen.blit(paused_text, paused_text.get_rect(center=(SCREEN_WIDTH // 2, 50)))
+    screen.blit(paused_text, paused_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 50)))
 
     score_text = font_respectable.render(f"{localize('score')}: {score}{localize('pts')}", True,
                                          pygame.Color(255, 255, 255))
@@ -1590,17 +1768,31 @@ def score_screen():
     combo_text = font_respectable.render(f"{localize('combo')}: {max_combo}x/{note_amt}x {'(FC)' * fc}", True, "white")
     grade_text = font_rating.render(f"{grade}", True, pygame.Color(grade_color))
 
-    screen.blit(grade_text, grade_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 80)))
-    screen.blit(percent_text, percent_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)))
+    text_item = song_to_play
+    if text_item.startswith("@"):
+        text_item = " ".join(song_to_play.split(" ")[1:]) or song_to_play
 
-    screen.blit(score_text, score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 50)))
-    screen.blit(combo_text, combo_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 80)))
+    name_txt = font_respectable.render(text_item, True, pygame.Color(255, 255, 255))
 
+    mod_txt = font_respectable.render(", ".join(modifiers) or localize("no_mods"), True, pygame.Color(128, 128, 128))
+
+    screen.blit(grade_text,
+                grade_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT // 2 - 80)))
+    screen.blit(percent_text,
+                percent_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT // 2)))
+
+    screen.blit(score_text,
+                score_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT // 2 + 50)))
+    screen.blit(combo_text,
+                combo_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT // 2 + 80)))
 
     caption_text = font_medium.render(localize("win_screen_play_again"), True, "white")
     quit_text = font_medium.render(localize("win_screen_menu"), True, "white")
-    screen.blit(caption_text, (caption_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100))))
-    screen.blit(quit_text, (quit_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 70))))
+    screen.blit(caption_text,
+                (caption_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT - 100))))
+    screen.blit(quit_text, (quit_text.get_rect(center=(globalvars.SCREEN_WIDTH // 2, globalvars.SCREEN_HEIGHT - 70))))
+    screen.blit(name_txt, name_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 100)))
+    screen.blit(mod_txt, mod_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 150)))
 
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
@@ -1610,16 +1802,6 @@ def score_screen():
                     return "game"
                 case pygame.K_ESCAPE:
                     return "song_select"
-                # case pygame.K_w:
-                #     percent -= .1
-                # case pygame.K_s:
-                #     percent += .1
-                # case pygame.K_UP:
-                #     percent -= 1
-                # case pygame.K_DOWN:
-                #     percent += 1
-                # case pygame.K_SPACE:
-                #     percent = 100
         if event.type == pygame.QUIT:
             return "quit"
 
@@ -1643,9 +1825,10 @@ def fail_screen():
     fail_txt = font_respectable.render(localize("game_over"), True, pygame.Color("white"))
     restart_txt = font.render(f"{localize('score')}: {score}{localize('pts')}", True, pygame.Color("white"))
 
-    screen.blit(txt, (txt.get_rect(topright=(SCREEN_WIDTH - 10, 10))))
-    screen.blit(fail_txt, fail_txt.get_rect(center=(SCREEN_WIDTH // 2, 50)))
-    screen.blit(restart_txt, restart_txt.get_rect(center=(SCREEN_WIDTH // 2, (SCREEN_HEIGHT // 2) - 70)))
+    screen.blit(txt, (txt.get_rect(topright=(globalvars.SCREEN_WIDTH - 10, 10))))
+    screen.blit(fail_txt, fail_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, 50)))
+    screen.blit(restart_txt,
+                restart_txt.get_rect(center=(globalvars.SCREEN_WIDTH // 2, (globalvars.SCREEN_HEIGHT // 2) - 70)))
 
     for i in range(0, len(fail_options)):
         if i == selected_option:
@@ -1653,7 +1836,7 @@ def fail_screen():
         else:
             s = fail_options[i]
         t = font.render(s, True, pygame.Color((255, 255, 255)))
-        screen.blit(t, t.get_rect(center=(SCREEN_WIDTH // 2, (SCREEN_HEIGHT // 2) + (i * 30))))
+        screen.blit(t, t.get_rect(center=(globalvars.SCREEN_WIDTH // 2, (globalvars.SCREEN_HEIGHT // 2) + (i * 30))))
 
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
@@ -1691,6 +1874,33 @@ def fail_screen():
 
     pygame.display.update()
     return "fail"
+
+
+# f = 0
+# video_c = pygame.time.Clock()
+
+def video_screen():
+    clock.tick(240)
+    screen.fill("black")
+
+    """
+    global f
+    clock.tick(1000)
+    screen.fill("black")
+
+    if not tutorial_vid.video_stop:
+        screen.blit(tutorial_vid.image, tutorial_vid.image.get_rect())
+        tutorial_vid.update(f)
+        f += clock.get_time()
+    else:
+        return "main_menu"
+    """
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            return "quit"
+
+    pygame.display.update()
+    return "video"
 
 
 with cProfile.Profile() as pr:

@@ -1,5 +1,5 @@
 import urcparse
-from globals import *
+import globalvars
 from pygame import transform
 
 
@@ -36,18 +36,20 @@ class Piece:
         self.time = int(kwargs.get("time", 1000))
         # Scroll duration is in ms
         # v = d/t px/ms (where d is distance in px and c is scroll time in ms)
-        self.scroll_time = int(kwargs.get("scroll_time", DEFAULT_SCROLL_TIME))
-        self.render_distance = int(kwargs.get("render_distance", DEFAULT_RENDER_DISTANCE))
+        self.scroll_time = int(kwargs.get("scroll_time", globalvars.DEFAULT_SCROLL_TIME))
+        self.render_distance = int(kwargs.get("render_distance", globalvars.DEFAULT_RENDER_DISTANCE))
         self.hit = kwargs.get("hit", False)
         self.id = kwargs.get("id", 0)
         self.flip = bool(kwargs.get("flip", False))
         self.keys = kwargs.get("keys")
         self.scale = 1
         self.img = None
+        self.broken = False
 
     def x(self, elapsed) -> float:
-        # MOVEMENT_AREA = SCREEN WIDTH - HIT LINE X
-        return (((self.time - elapsed) / self.scroll_time) * MOVEMENT_AREA) + HIT_LINE_LOC
+        # globalvars.MOVEMENT_AREA = SCREEN WIDTH - HIT LINE X
+        # from main import globalvars.HIT_LINE_LOC
+        return (((self.time - elapsed) / self.scroll_time) * globalvars.MOVEMENT_AREA) + globalvars.HIT_LINE_LOC
 
     def y(self, ribbon) -> int:
         match self.type.upper():
@@ -67,7 +69,7 @@ class Piece:
         if self.type.upper() == "BL":
             x -= 12
 
-        if SCREEN_WIDTH <= x or x < 0:
+        if globalvars.SCREEN_WIDTH <= x or x < 0:
             # don't even bother drawing if it isn't on the screen
             return
 
@@ -75,7 +77,7 @@ class Piece:
 
         # Keep that DUMB DUMB SNAKEY from TROLLING all our images with OPACITY
         if self.img is None:
-            type_img = imgs[obs_shorthand[obs_type]].copy()
+            type_img = imgs[globalvars.obs_shorthand[obs_type]].copy()
             self.img = type_img
         else:
             type_img = self.img
@@ -88,7 +90,7 @@ class Piece:
         # Flip
         if self.flip:
             # For some reason, multiplying this by -1 made it flip CORRECTLY
-            self.scale = ((((x - HIT_LINE_LOC) / MOVEMENT_AREA) * 2) - 1) * -1
+            self.scale = ((((x - globalvars.HIT_LINE_LOC) / globalvars.MOVEMENT_AREA) * 2) - 1) * -1
             if self.scale < 0:
                 type_img = transform.rotate(type_img, 180)
             type_img = transform.scale(type_img, (default_width, abs(self.scale) * default_height))
@@ -120,12 +122,12 @@ def parse_file(fn):
     with open(fn, "r") as f:
         urc = urcparse.parse(f.read())
         ctr = 0
-        render_dist = int(urc.metadata.get("RenderDist", DEFAULT_RENDER_DISTANCE))
-        scroll_speed = int(urc.metadata.get("ScrollSpeed", DEFAULT_SCROLL_TIME))
+        render_dist = int(urc.metadata.get("RenderDist", globalvars.DEFAULT_RENDER_DISTANCE))
+        scroll_speed = int(urc.metadata.get("ScrollSpeed", globalvars.DEFAULT_SCROLL_TIME))
         offset_override = int(urc.metadata.get("OffsetOverride", 0))
         for i in urc.events:
             if i.event.lower() == "scroll":
-                scroll_speed = int(i.params.get("speed", DEFAULT_SCROLL_TIME))
+                scroll_speed = int(i.params.get("speed", globalvars.DEFAULT_SCROLL_TIME))
                 invisible_pcs.append(InvisiblePiece(
                     type="scroll",
                     time=i.time + offset_override,

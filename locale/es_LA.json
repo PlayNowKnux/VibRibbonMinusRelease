@@ -2,25 +2,52 @@
   "noto-sans.otf": "roboto.ttf",
   "subtitle": "",
   "start_msg": "presiona enter",
-  "pause_text": "pausado",
+
+  "pause_text": "pausa",
   "pause_resume": "resumir",
-  "pause_try_again": "reintentar",
-  "pause_quit_to_menu": "ir al menu",
-  "pause_quit_game": "salir del juego",
+  "pause_try_again": "volver a intentar",
+  "pause_quit_to_menu": "regresar al menu",
+  "pause_quit_game": "salir",
+
+  "menu_play_song": "seleccionar cancion",
+  "menu_options": "opciones",
+  "menu_tutorial": "tutorial (proximamente)",
+  "menu_back": "regresar",
+
+  "options_language": "idioma",
+  "options_music": "musica del menu",
+  "options_sfx": "efectos de sonido",
+  "options_display_pressed": "display pressed keys",
+
+  "SUPER": "Super",
+  "RABBIT": "Conejo",
+  "FROG": "Rana",
+  "WORM": "Gusano",
+
   "botplay": "BOTPLAY",
+  "nofail": "NO FAIL",
+  "wildcard": "WILDCARD",
+  "no_mods": "NO MODS",
   "score": "score",
   "pts": " pts",
-  "game_over": "game over!",
+  "combo": "combo",
+  "game_over": "se acabo!",
 
-  "win_100": "vaya! lo jugaste perfectamente!",
-  "win_99": "esto se veria bien para un gameplay...",
+  "win_100": "vaya vaya! lo completaste perfectamente!",
+  "win_99": "esto se veria bien en un gameplay...",
   "win_95": "fantastico!",
   "win_95_close": "lo lograste; muy buen trabajo!",
-  "win_90": "eso fue increible!",
-  "win_90_close": "lo lograste; eso fue increible!",
+  "win_90": "eso estuvo genial!",
+  "win_90_close": "lo lograste!; eso estuvo genial!",
   "win_80": "bien hecho! siento algo de potencial aqui...",
   "win_70": "okay! la practica hace el maestro!",
-  "win_60": "ouch, eso fue duro... por que no reintentar?",
+  "win_60": "ouch, eso fue duro... por que no volverlo a intentar?",
   "win_50": "ouch...",
-  "win_bot": "te gusto la jugada del bot? ahora intentalo!"
+  "win_bot": "te gusto el juego del bot? ahora intentalo!",
+
+  "win_screen_play_again": "presiona enter para volver a jugar",
+  "win_screen_menu": "presiona esc para regresar seleccionar otra cancion.",
+
+  "incorrect_sample": "La frecuencia de esta cancion no es 44100Hz, asi que no se puede jugar.",
+  "restart_game": "Se han guardado los cambios. Presiona cualquier tecla para salir del juego."
 }
