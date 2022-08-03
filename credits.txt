@@ -17,15 +17,11 @@ PLAY NOW
 system128
 
 Localization:
-Kana Eckstrom (Japanese)
 PLAY NOW (Japanese)
 zeriben (Spanish [Latin America])
 GroovyMarco (French [Canada])
-StereoMimi (Italian)
-Thetechacker (Italian)
 
 Special Thanks:
 Masaya Matsuura
 The Vib-Ribbon Server
-Caddicarus
 You

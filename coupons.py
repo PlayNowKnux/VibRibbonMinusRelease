@@ -1,9 +1,7 @@
 import pygame, vibscore, math
-#from globalvars import *
-import globalvars
+from globals import *
 
-
-width = globalvars.SCREEN_WIDTH
+width = SCREEN_WIDTH
 
 
 def rot_center(image, rect, angle):

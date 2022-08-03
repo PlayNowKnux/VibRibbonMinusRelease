@@ -3,6 +3,8 @@ import os
 import yaml
 import traceback
 
+# TODO: Add support for copying music files
+# TODO: Port to command line
 
 def clamp(num, min_value, max_value):
     num = max(min(num, max_value), min_value)
