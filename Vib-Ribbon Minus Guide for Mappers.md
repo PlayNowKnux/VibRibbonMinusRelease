@@ -45,7 +45,7 @@ vibribbonminus
 		- (other maps)
 		- My Map
 			- My Map.ogg
-            - My Map.vib
+            		- My Map.vib
 	- VibRibbonMinus.exe
 ```
 
